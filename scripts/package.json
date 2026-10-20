@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "greeting-server": "node ./src/greeting-server.mjs",
+    "walkie-talkie": "node ./src/index.js",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }
