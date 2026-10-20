@@ -305,7 +305,9 @@ webSocketServer.on("connection", (client) => {
     const room = rooms.get(state.roomId);
     if (!room) return;
 
-    // Binary frame format: UTF-8 userId, newline, then the original audio bytes.
+    // Binary frame format: UTF-8 userId, newline, MIME type, newline, audio bytes.
+    // The client includes the MIME type at the start of data so receivers can
+    // choose the matching browser decoder.
     const audioFrame = Buffer.concat([Buffer.from(`${state.userId}\n`), data]);
     for (const recipient of room) {
       if (recipient === client || recipient.readyState !== WebSocket.OPEN) continue;
@@ -333,7 +335,7 @@ webSocketServer.on("connection", (client) => {
     type: "connected",
     userId: clientState.get(client).userId,
     websocketPath: WS_PATH,
-    audioFrameFormat: "UTF-8 userId, newline, then audio bytes",
+    audioFrameFormat: "UTF-8 userId, newline, MIME type, newline, then audio bytes",
   });
 });
 

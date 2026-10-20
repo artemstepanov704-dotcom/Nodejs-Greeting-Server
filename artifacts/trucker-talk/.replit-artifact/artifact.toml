@@ -1,0 +1,46 @@
+kind = "web"
+previewPath = "/"
+title = "Trucker Talk"
+description = "A browser-based walkie-talkie for truck drivers, with a live driver map, room codes, GPS sharing, and push-to-talk audio over the existing WebSocket protocol."
+version = "1.0.0"
+id = "artifacts/trucker-talk"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21104
+
+[services.development]
+run = "pnpm --filter @workspace/trucker-talk run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trucker-talk", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trucker-talk/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21104"
+BASE_PATH = "/"
+
+[[services]]
+name = "walkie-talkie"
+paths = [ "/ws", "/health" ]
+localPort = 3000
+
+[services.development]
+run = "pnpm --filter @workspace/scripts run walkie-talkie"
+
+[services.env]
+PORT = "3000"
+
+[services.production.run]
+args = [ "node", "scripts/src/index.js" ]
+
+[services.production.run.env]
+PORT = "3000"
+NODE_ENV = "production"
