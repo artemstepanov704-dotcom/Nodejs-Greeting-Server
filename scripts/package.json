@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "greeting-server": "node ./src/greeting-server.mjs",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
