@@ -23,15 +23,14 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
-      - name: Install and Build with pnpm
+      - name: Install Dependencies
         run: |
-          pnpm install || npm install
-          pnpm add @capacitor/core @capacitor/cli @capacitor/android || true
+          npm install --legacy-peer-deps || true
+          npx @capacitor/core@latest || true
+          npx @capacitor/cli@latest || true
+
+      - name: Initialize & Sync Capacitor Android
+        run: |
           mkdir -p www
           npx cap init TruckerTalk com.trucker.talk --web-dir www || true
           npx cap add android || true
