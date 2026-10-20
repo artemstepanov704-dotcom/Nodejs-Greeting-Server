@@ -25,8 +25,9 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Add Android Platform
+      - name: Initialize Capacitor Android
         run: |
+          npx cap init TruckerTalk com.trucker.talk --web-dir www || true
           npx cap add android || true
           npx cap sync android
 
@@ -41,4 +42,3 @@ jobs:
         with:
           name: TruckerTalk-App
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          
