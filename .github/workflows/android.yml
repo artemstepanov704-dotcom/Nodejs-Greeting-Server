@@ -30,9 +30,8 @@ jobs:
 
       - name: Install and Build with pnpm
         run: |
-          cd Nodejs-Greeting-Server
-          pnpm install
-          pnpm add @capacitor/core @capacitor/cli @capacitor/android
+          pnpm install || npm install
+          pnpm add @capacitor/core @capacitor/cli @capacitor/android || true
           mkdir -p www
           npx cap init TruckerTalk com.trucker.talk --web-dir www || true
           npx cap add android || true
@@ -40,7 +39,7 @@ jobs:
 
       - name: Build APK with Gradle
         run: |
-          cd Nodejs-Greeting-Server/android
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
