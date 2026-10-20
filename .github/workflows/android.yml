@@ -23,12 +23,16 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install and Build
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install and Build with pnpm
         run: |
-          # Переходим во вложенную папку проекта
-          cd Nodejs-Greeting-Server || true
-          npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          cd Nodejs-Greeting-Server
+          pnpm install
+          pnpm add @capacitor/core @capacitor/cli @capacitor/android
           mkdir -p www
           npx cap init TruckerTalk com.trucker.talk --web-dir www || true
           npx cap add android || true
@@ -36,7 +40,7 @@ jobs:
 
       - name: Build APK with Gradle
         run: |
-          cd Nodejs-Greeting-Server/android || cd android
+          cd Nodejs-Greeting-Server/android
           chmod +x gradlew
           ./gradlew assembleDebug
 
