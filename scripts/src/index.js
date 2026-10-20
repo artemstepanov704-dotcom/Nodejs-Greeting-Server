@@ -111,15 +111,15 @@ function joinRoom(client, roomId) {
   const room = rooms.get(roomId);
 
   if (!room) {
-    sendError(client, "That room does not exist or has already closed.");
+    sendError(client, "Канал не найден или уже закрыт.");
     return;
   }
   if (state.roomId) {
-    sendError(client, "Leave your current room before joining another.");
+    sendError(client, "Сначала отключитесь от текущего канала.");
     return;
   }
   if (room.size >= MAX_ROOM_MEMBERS) {
-    sendError(client, "That room is full.");
+    sendError(client, "В канале больше нет свободных мест.");
     return;
   }
 
@@ -166,7 +166,7 @@ function allowAudioFrame(client) {
 function handleControlMessage(client, rawMessage) {
   const state = clientState.get(client);
   if (!allowControlMessage(client)) {
-    sendError(client, "Too many messages. Slow down and try again.");
+    sendError(client, "Слишком много сообщений. Подождите немного и попробуйте снова.");
     return;
   }
 
@@ -174,23 +174,23 @@ function handleControlMessage(client, rawMessage) {
   try {
     message = JSON.parse(rawMessage.toString());
   } catch {
-    sendError(client, "Send a valid JSON control message.");
+    sendError(client, "Отправьте корректное управляющее сообщение в формате JSON.");
     return;
   }
 
   if (!message || typeof message !== "object" || Array.isArray(message)) {
-    sendError(client, "Control messages must be JSON objects.");
+    sendError(client, "Управляющее сообщение должно быть объектом JSON.");
     return;
   }
 
   switch (message.type) {
     case "create_room": {
       if (state.roomId) {
-        sendError(client, "Leave your current room before creating another.");
+        sendError(client, "Сначала отключитесь от текущего канала.");
         return;
       }
       if (rooms.size >= MAX_ROOMS) {
-        sendError(client, "The server is at its room limit. Try again later.");
+        sendError(client, "Достигнут лимит каналов. Попробуйте позже.");
         return;
       }
 
@@ -210,7 +210,7 @@ function handleControlMessage(client, rawMessage) {
         typeof message.roomId !== "string" ||
         !/^[A-Za-z0-9_-]{32}$/.test(message.roomId)
       ) {
-        sendError(client, "roomId must be a valid room code.");
+        sendError(client, "Укажите действительный код канала.");
         return;
       }
       joinRoom(client, message.roomId);
@@ -224,7 +224,7 @@ function handleControlMessage(client, rawMessage) {
 
     case "location": {
       if (!state.roomId) {
-        sendError(client, "Join a room before sharing your location.");
+        sendError(client, "Сначала подключитесь к каналу, чтобы передавать геопозицию.");
         return;
       }
       const { latitude, longitude } = message;
@@ -238,11 +238,11 @@ function handleControlMessage(client, rawMessage) {
         longitude < -180 ||
         longitude > 180
       ) {
-        sendError(client, "Provide valid latitude and longitude values.");
+        sendError(client, "Укажите корректные значения широты и долготы.");
         return;
       }
       if (Date.now() - state.lastLocationAt < 1_000) {
-        sendError(client, "Location updates are limited to one per second.");
+        sendError(client, "Геопозицию можно обновлять не чаще одного раза в секунду.");
         return;
       }
 
@@ -264,7 +264,7 @@ function handleControlMessage(client, rawMessage) {
     default:
       sendError(
         client,
-        "Unknown message type. Use create_room, join_room, leave_room, or location.",
+        "Неизвестный тип сообщения. Перезапустите приложение и попробуйте снова.",
       );
   }
 }
@@ -290,15 +290,15 @@ webSocketServer.on("connection", (client) => {
     }
 
     if (!state.roomId) {
-      sendError(client, "Join a room before sending audio.");
+      sendError(client, "Сначала подключитесь к каналу, чтобы передавать звук.");
       return;
     }
     if (!allowAudioFrame(client)) {
-      sendError(client, "Audio frame limit reached. Slow down and try again.");
+      sendError(client, "Превышен лимит аудиофрагментов. Подождите немного и попробуйте снова.");
       return;
     }
     if (data.length > MAX_AUDIO_FRAME_BYTES) {
-      sendError(client, "Audio frame is too large.");
+      sendError(client, "Аудиофрагмент слишком большой.");
       return;
     }
 

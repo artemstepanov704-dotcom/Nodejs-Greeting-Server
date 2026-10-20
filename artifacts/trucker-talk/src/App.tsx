@@ -40,6 +40,20 @@ const queryClient = new QueryClient();
 const AUDIO_FRAME_LIMIT = 64 * 1024 - 64;
 const DEFAULT_CENTER: L.LatLngExpression = [39.0997, -94.5786];
 
+function formatDriverCount(count: number) {
+  const lastTwo = count % 100;
+  const lastOne = count % 10;
+  const word =
+    lastTwo >= 11 && lastTwo <= 14
+      ? 'водителей'
+      : lastOne === 1
+        ? 'водитель'
+        : lastOne >= 2 && lastOne <= 4
+          ? 'водителя'
+          : 'водителей';
+  return `${count} ${word}`;
+}
+
 function MapView({ positions }: { positions: Record<string, Position> }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -56,9 +70,15 @@ function MapView({ positions }: { positions: Record<string, Position> }) {
     });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      subdomains: 'abc',
+      attribution:
+        'Данные карты &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.control.zoom({
+      position: 'bottomright',
+      zoomInTitle: 'Приблизить карту',
+      zoomOutTitle: 'Отдалить карту',
+    }).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const timer = window.setTimeout(() => map.invalidateSize(), 60);
@@ -79,7 +99,7 @@ function MapView({ positions }: { positions: Record<string, Position> }) {
     const entries = Object.entries(positions);
     entries.forEach(([id, position]) => {
       const self = id.startsWith('self:');
-      const label = self ? 'YOU' : id.slice(0, 2).toUpperCase();
+      const label = self ? 'Я' : id.slice(0, 2).toUpperCase();
       const icon = L.divIcon({
         className: '',
         html: `<div class="driver-marker${self ? ' self' : ''}"><span>${label}</span></div>`,
@@ -87,7 +107,7 @@ function MapView({ positions }: { positions: Record<string, Position> }) {
         iconAnchor: [17, 30],
       });
       L.marker([position.latitude, position.longitude], { icon })
-        .bindTooltip(self ? 'Your position' : `Driver ${id.slice(0, 8)}`, {
+        .bindTooltip(self ? 'Моя геопозиция' : `Водитель ${id.slice(0, 8)}`, {
           direction: 'top',
           offset: [0, -22],
         })
@@ -100,7 +120,7 @@ function MapView({ positions }: { positions: Record<string, Position> }) {
     if (entries.length === 0) didCenterOnPosition.current = false;
   }, [positions]);
 
-  return <div className="map-canvas" ref={mapElement} aria-label="Interactive live driver map" data-testid="map-live" />;
+  return <div className="map-canvas" ref={mapElement} aria-label="Интерактивная карта водителей" data-testid="map-live" />;
 }
 
 function Home() {
@@ -223,8 +243,8 @@ function Home() {
       (reason) => {
         setLocationError(
           reason.code === reason.PERMISSION_DENIED
-            ? 'Location permission was denied. Allow it in browser settings to share your position.'
-            : 'Your position is not available right now. Location sharing will keep trying.',
+            ? 'Нет доступа к геопозиции. Разрешите доступ в настройках браузера, чтобы делиться местоположением.'
+            : 'Геопозиция сейчас недоступна. Приложение продолжит попытки.',
         );
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
@@ -317,7 +337,7 @@ function Home() {
         break;
       }
       case 'error':
-        setError(String(message.message ?? 'The radio server returned an error.'));
+        setError(String(message.message ?? 'Сервер рации сообщил об ошибке.'));
         break;
     }
   }, [startLocationWatch, stopLocationWatch, stopTalking]);
@@ -328,7 +348,7 @@ function Home() {
     const configuredWsUrl = import.meta.env.VITE_WS_URL?.trim();
     if (Capacitor.isNativePlatform() && !configuredWsUrl) {
       setConnection('disconnected');
-      setError('The Android build needs VITE_WS_URL set to the deployed secure WebSocket endpoint.');
+      setError('Для приложения Android не задан адрес сервера рации.');
       return;
     }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -343,14 +363,14 @@ function Home() {
         try {
           onWireMessage(JSON.parse(event.data) as WireMessage);
         } catch {
-          setError('Received an unreadable message from the radio server.');
+          setError('Не удалось прочитать сообщение от сервера рации.');
         }
       } else {
         void receiveAudio(event.data);
       }
     };
     socket.onerror = () => {
-      setError('Radio connection interrupted. Check your network and reconnect.');
+      setError('Связь с рацией прервалась. Проверьте интернет и подключитесь снова.');
     };
     socket.onclose = () => {
       socketRef.current = null;
@@ -362,7 +382,7 @@ function Home() {
       sharingRef.current = false;
       setSharingLocation(false);
       stopEverything();
-      setError((current) => current || 'Connection closed. Reconnect to start or rejoin a room.');
+      setError((current) => current || 'Связь потеряна. Подключитесь снова или заново войдите в канал.');
     };
 
     async function receiveAudio(raw: ArrayBuffer | Blob) {
@@ -376,7 +396,7 @@ function Home() {
         if (mimeDelimiter < 0 || mimeDelimiter === delimiter + 1) return;
         const mimeType = new TextDecoder().decode(bytes.subarray(delimiter + 1, mimeDelimiter));
         if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(mimeType)) {
-          setCodecError(`This browser cannot play ${mimeType} radio audio.`);
+          setCodecError(`Браузер не поддерживает воспроизведение рации в формате ${mimeType}.`);
           return;
         }
         const payload = bytes.slice(mimeDelimiter + 1);
@@ -384,7 +404,7 @@ function Home() {
         let player = playbackRef.current.get(sender);
         if (!player) {
           if (typeof MediaSource === 'undefined') {
-            setCodecError('This browser cannot play the radio audio format.');
+            setCodecError('Браузер не поддерживает формат аудио рации.');
             return;
           }
           const mediaSource = new MediaSource();
@@ -404,17 +424,17 @@ function Home() {
               active.sourceBuffer.addEventListener('updateend', () => flushPlayback(sender));
               flushPlayback(sender);
             } catch {
-              setCodecError('Unable to decode incoming radio audio in this browser.');
+              setCodecError('Не удалось воспроизвести входящее аудио рации.');
             }
           }, { once: true });
         }
         player.queue.push(payload.buffer as ArrayBuffer);
         flushPlayback(sender);
         void player.audio.play().catch(() => {
-          setCodecError('Tap or click once to enable incoming radio audio playback.');
+          setCodecError('Коснитесь экрана, чтобы включить воспроизведение входящего аудио.');
         });
       } catch {
-        setCodecError('Incoming audio could not be decoded by this browser.');
+        setCodecError('Браузер не смог декодировать входящее аудио.');
       }
     }
     function flushPlayback(sender: string) {
@@ -425,7 +445,7 @@ function Home() {
         player.sourceBuffer.appendBuffer(player.queue.shift()!);
       } catch {
         player.queue = [];
-        setCodecError('Radio audio format is unsupported or the connection dropped a frame.');
+        setCodecError('Формат аудио не поддерживается или часть данных потеряна при передаче.');
       }
     }
 
@@ -467,7 +487,7 @@ function Home() {
   const joinRoom = () => {
     const code = roomInput.trim();
     if (!code) {
-      setError('Enter a room code before joining.');
+      setError('Введите код канала, чтобы подключиться.');
       return;
     }
     setError('');
@@ -485,7 +505,7 @@ function Home() {
   };
   const toggleLocation = (checked: boolean) => {
     if (checked && !roomRef.current) {
-      setLocationError('Join a room before sharing your position.');
+      setLocationError('Сначала подключитесь к каналу, чтобы делиться геопозицией.');
       return;
     }
     setLocationError('');
@@ -496,15 +516,15 @@ function Home() {
   const startTalking = async () => {
     if (pressRef.current) return;
     if (!roomRef.current || connection !== 'connected' || socketRef.current?.readyState !== WebSocket.OPEN) {
-      setMicError('Join a connected room before transmitting.');
+      setMicError('Подключитесь к каналу, чтобы начать передачу.');
       return;
     }
     if (!supportsAudio || !audioTypeRef.current) {
-      setMicError('This browser does not support a compatible radio audio codec.');
+      setMicError('Браузер не поддерживает подходящий аудиоформат для рации.');
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setMicError('Microphone capture is not supported in this browser.');
+      setMicError('Браузер не поддерживает запись с микрофона.');
       return;
     }
     pressRef.current = true;
@@ -524,7 +544,7 @@ function Home() {
         const socket = socketRef.current;
         if (!pressRef.current || socket?.readyState !== WebSocket.OPEN || !roomRef.current) return;
         if (event.data.size > AUDIO_FRAME_LIMIT) {
-          setMicError('Audio chunk exceeded the radio frame limit and was not sent.');
+          setMicError('Аудиофрагмент слишком большой и не был отправлен.');
           return;
         }
         try {
@@ -535,10 +555,10 @@ function Home() {
           frame.set(audioBytes, mimeBytes.length);
           socket.send(frame);
         } catch {
-          setMicError('Could not send microphone audio. Check the connection.');
+          setMicError('Не удалось передать звук с микрофона. Проверьте связь.');
         }
       };
-      recorder.onerror = () => setMicError('Microphone recording stopped unexpectedly.');
+      recorder.onerror = () => setMicError('Запись с микрофона неожиданно остановилась.');
       recorder.start(200);
       setTalking(true);
     } catch (reason) {
@@ -546,8 +566,8 @@ function Home() {
       const permissionDenied = reason instanceof DOMException &&
         (reason.name === 'NotAllowedError' || reason.name === 'PermissionDeniedError');
       setMicError(permissionDenied
-        ? 'Microphone access was denied. Allow microphone access in your browser settings.'
-        : 'Microphone could not be started. Check that it is connected and available.');
+        ? 'Нет доступа к микрофону. Разрешите его в настройках браузера.'
+        : 'Не удалось включить микрофон. Проверьте, подключён ли он и доступен ли он.');
       stopTalking();
     }
   };
@@ -559,7 +579,7 @@ function Home() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      setError('Clipboard access is unavailable. Select and copy the room code instead.');
+      setError('Не удалось скопировать код. Выделите его и скопируйте вручную.');
     }
   };
 
@@ -570,8 +590,8 @@ function Home() {
     return current;
   }, [positions, userId]);
   const connectionText = connection === 'connected'
-    ? 'Radio connected'
-    : connection === 'connecting' ? 'Connecting to radio' : 'Radio disconnected';
+    ? 'На связи'
+    : connection === 'connecting' ? 'Подключение…' : 'Нет связи';
   const joined = Boolean(roomId);
 
   return (
@@ -580,8 +600,8 @@ function Home() {
         <div className="brand">
           <div className="brand-mark"><Radio size={22} strokeWidth={2.2} /></div>
           <div>
-            <div className="brand-title">Road Radio</div>
-            <div className="brand-sub">A shared channel for the miles ahead</div>
+            <div className="brand-title">Рация дальнобойщиков</div>
+            <div className="brand-sub">Связь на дороге</div>
           </div>
         </div>
         <div className={`connection ${connection}`} data-testid="status-connection">
@@ -591,119 +611,78 @@ function Home() {
       </header>
 
       <div className="dashboard">
-        <section className="map-panel" aria-label="Driver locations">
+        <section className="map-panel" aria-label="Карта водителей">
           <div className="map-head">
             <span className="map-live" />
-            <strong>Live road view</strong>
-            <span>{Object.keys(visiblePositions).length} positions</span>
+            <strong>Карта водителей</strong>
+            <span>{formatDriverCount(Object.keys(visiblePositions).length)}</span>
           </div>
           <MapView positions={visiblePositions} />
           {Object.keys(visiblePositions).length === 0 && (
             <div className="map-empty">
               <div className="empty-symbol"><MapPin size={18} /></div>
-              <strong>No live positions yet</strong>
-              <p>Drivers appear here only after they join this room and choose to share location.</p>
+              <strong>Пока нет водителей на карте</strong>
+              <p>Водители появятся здесь после подключения к каналу и включения передачи геопозиции.</p>
             </div>
           )}
         </section>
 
         <aside className="side-panel">
           <section className="panel-card room-card">
-            <div className="card-kicker"><RadioTower size={14} /> Channel setup</div>
-            <h1 className="card-title">{joined ? 'You’re on the channel' : 'Find your crew'}</h1>
-            <p className="card-copy">{joined ? 'Share this private room code with the drivers you want to reach.' : 'Create a private room or enter a code from another driver.'}</p>
+            <div className="card-kicker"><RadioTower size={14} /> Канал связи</div>
+            <h1 className="card-title">{joined ? 'Вы подключены к каналу' : 'Подключиться к каналу'}</h1>
+            <p className="card-copy">{joined ? 'Отправьте этот закрытый код водителям, с которыми хотите связаться.' : 'Создайте закрытый канал или введите код от другого водителя.'}</p>
             <div className="room-label">
-              <span>Room code</span>
-              <span className={`room-state ${joined ? 'active' : ''}`}>{joined ? 'Live channel' : 'Not joined'}</span>
+              <span>Код канала</span>
+              <span className={`room-state ${joined ? 'active' : ''}`}>{joined ? 'На связи' : 'Не подключено'}</span>
             </div>
             {joined ? (
               <div className="room-code-row">
-                <input aria-label="Room code" className="room-code" value={roomId} readOnly data-testid="input-room-code" />
-                <button className="copy-button" type="button" onClick={copyRoom} aria-label="Copy room code" data-testid="button-copy-room">
+                <input aria-label="Код канала" className="room-code" value={roomId} readOnly data-testid="input-room-code" />
+                <button className="copy-button" type="button" onClick={copyRoom} aria-label="Скопировать код канала" data-testid="button-copy-room">
                   <Copy size={16} />
                 </button>
               </div>
             ) : (
               <input
-                aria-label="Enter room code"
+                aria-label="Введите код канала"
                 className="room-code"
                 value={roomInput}
                 onChange={(event) => setRoomInput(event.target.value)}
-                placeholder="Paste a 32-character room code"
+                placeholder="Вставьте 32-символьный код канала"
                 data-testid="input-join-room"
               />
             )}
             <div className="room-actions">
               {joined ? (
                 <button type="button" className="action-button" onClick={leaveRoom} data-testid="button-leave-room">
-                  Leave room
+                  Отключиться от канала
                 </button>
               ) : (
                 <>
                   <button type="button" className="action-button primary" onClick={createRoom} disabled={connection !== 'connected'} data-testid="button-create-room">
-                    Create room
+                    Создать канал
                   </button>
                   <button type="button" className="action-button" onClick={joinRoom} disabled={connection !== 'connected'} data-testid="button-join-room">
-                    Join room
+                    Подключиться
                   </button>
                 </>
               )}
             </div>
-            {joined && copied && <div className="card-copy" role="status" data-testid="status-copy">Room code copied.</div>}
+            {joined && copied && <div className="card-copy" role="status" data-testid="status-copy">Код канала скопирован.</div>}
             <div className="identity-row">
-              <span>Your radio ID</span>
-              <span className="identity-value" title={userId} data-testid="text-user-id">{userId || 'Waiting for connection'}</span>
+              <span>Мой позывной</span>
+              <span className="identity-value" title={userId} data-testid="text-user-id">{userId || 'Ожидание подключения'}</span>
             </div>
             {connection === 'disconnected' && (
               <button type="button" className="action-button" style={{ width: '100%', marginTop: 10 }} onClick={() => setConnectVersion((value) => value + 1)} data-testid="button-reconnect">
-                <Wifi size={14} /> Reconnect
+                <Wifi size={14} /> Подключиться снова
               </button>
             )}
           </section>
 
-          <section className="panel-card roster-card">
-            <div className="roster-head">
-              <h2>On this channel</h2>
-              <span className="count-pill" data-testid="text-member-count">{members.length}</span>
-            </div>
-            {members.length > 0 ? (
-              <div className="member-list">
-                {members.map((member) => {
-                  const isSelf = member === userId;
-                  return (
-                    <div className={`member-row${isSelf ? ' self' : ''}`} key={member} data-testid={`member-${member}`}>
-                      <span className="member-initial">{isSelf ? 'ME' : member.slice(0, 2).toUpperCase()}</span>
-                      <span className="member-name">{member}</span>
-                      {isSelf && <span className="member-you">You</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="roster-empty"><Users size={18} style={{ marginBottom: 7 }} /><br />Join a room to see the drivers sharing your channel.</div>
-            )}
-          </section>
-
-          <section className="panel-card location-card">
-            <label className="location-toggle">
-              <input
-                className="toggle-box"
-                type="checkbox"
-                checked={sharingLocation}
-                disabled={!joined || connection !== 'connected'}
-                onChange={(event) => toggleLocation(event.target.checked)}
-                data-testid="input-location-sharing"
-              />
-              <span>
-                <span className="location-label">Share my live location</span>
-                <span className="location-note">Your position is sent only while opted in and connected to this room.</span>
-              </span>
-            </label>
-            {locationError && <div className="location-warning" role="status" data-testid="status-location">{locationError}</div>}
-          </section>
-
           <section className="talk-card">
-            <p className="talk-hint">{talking ? 'Transmitting to channel' : joined ? 'Hold to talk' : 'Join a channel to talk'}</p>
+            <p className="talk-hint">{talking ? 'Передача в эфире' : joined ? 'Зажмите кнопку, чтобы говорить' : 'Сначала подключитесь к каналу'}</p>
             <button
               type="button"
               className={`ptt-button${talking ? ' talking' : ''}`}
@@ -721,25 +700,67 @@ function Home() {
               onKeyUp={(event) => {
                 if (event.key === ' ' || event.key === 'Enter') stopTalking();
               }}
-              aria-label="Hold to transmit voice"
+              aria-label="Рация (зажмите, чтобы передать голос)"
               aria-pressed={talking}
               data-testid="button-push-to-talk"
             >
               <Mic size={28} strokeWidth={2} />
-              <span>{talking ? 'ON AIR' : 'PRESS & HOLD'}</span>
+              <span>{talking ? 'В ЭФИРЕ' : 'Рация (Зажать)'}</span>
             </button>
-            <p className="ptt-caption">{supportsAudio ? 'Release to stop transmitting' : 'Voice codec is not supported in this browser'}</p>
+            <p className="ptt-caption">{supportsAudio ? 'Отпустите кнопку, чтобы закончить передачу' : 'Браузер не поддерживает формат передачи голоса'}</p>
           </section>
+
           {(error || micError || codecError) && (
             <div className="alert" role="alert" data-testid="status-alert">
               <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
               {error || micError || codecError}
             </div>
           )}
+
+          <section className="panel-card location-card">
+            <label className="location-toggle">
+              <input
+                className="toggle-box"
+                type="checkbox"
+                checked={sharingLocation}
+                disabled={!joined || connection !== 'connected'}
+                onChange={(event) => toggleLocation(event.target.checked)}
+                data-testid="input-location-sharing"
+              />
+              <span>
+                <span className="location-label">Делиться геопозицией</span>
+                <span className="location-note">Ваше местоположение передаётся, только пока эта функция включена и вы подключены к каналу.</span>
+              </span>
+            </label>
+            {locationError && <div className="location-warning" role="status" data-testid="status-location">{locationError}</div>}
+          </section>
+
+          <section className="panel-card roster-card">
+            <div className="roster-head">
+              <h2>В канале</h2>
+              <span className="count-pill" data-testid="text-member-count">{members.length}</span>
+            </div>
+            {members.length > 0 ? (
+              <div className="member-list">
+                {members.map((member) => {
+                  const isSelf = member === userId;
+                  return (
+                    <div className={`member-row${isSelf ? ' self' : ''}`} key={member} data-testid={`member-${member}`}>
+                      <span className="member-initial">{isSelf ? 'Я' : member.slice(0, 2).toUpperCase()}</span>
+                      <span className="member-name">{member}</span>
+                      {isSelf && <span className="member-you">Это вы</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="roster-empty"><Users size={18} style={{ marginBottom: 7 }} /><br />Подключитесь к каналу, чтобы увидеть водителей.</div>
+            )}
+          </section>
         </aside>
       </div>
 
-      <footer className="safety"><ShieldAlert size={15} /> Use while parked. Do not interact while driving.</footer>
+      <footer className="safety"><ShieldAlert size={17} /> Не пользуйтесь рацией во время движения. Остановитесь в безопасном месте.</footer>
     </main>
   );
 }
