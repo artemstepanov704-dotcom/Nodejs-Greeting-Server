@@ -23,6 +23,7 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 import { type ReactNode } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 type Position = { latitude: number; longitude: number; updatedAt?: number };
@@ -324,8 +325,16 @@ function Home() {
   useEffect(() => {
     setConnection('connecting');
     setError('');
+    const configuredWsUrl = import.meta.env.VITE_WS_URL?.trim();
+    if (Capacitor.isNativePlatform() && !configuredWsUrl) {
+      setConnection('disconnected');
+      setError('The Android build needs VITE_WS_URL set to the deployed secure WebSocket endpoint.');
+      return;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const socket = new WebSocket(
+      configuredWsUrl || `${protocol}//${window.location.host}/ws`,
+    );
     socket.binaryType = 'arraybuffer';
     socketRef.current = socket;
     socket.onopen = () => setConnection('connected');

@@ -1,0 +1,8 @@
+{
+  "appId": "com.truckertalk.app",
+  "appName": "Trucker Talk",
+  "webDir": "dist/public",
+  "server": {
+    "androidScheme": "https"
+  }
+}
