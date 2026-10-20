@@ -23,15 +23,17 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Dependencies
-        run: npm install || true
+      - name: Install Capacitor Dependencies
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android
 
-      - name: Initialize Capacitor Android
+      - name: Initialize & Sync Capacitor Android
         run: |
           mkdir -p www
-          npx @capacitor/cli init TruckerTalk com.trucker.talk --web-dir www || true
-          npx @capacitor/cli add android || true
-          npx @capacitor/cli sync android
+          npx cap init TruckerTalk com.trucker.talk --web-dir www || true
+          npx cap add android || true
+          npx cap sync android
 
       - name: Build APK with Gradle
         run: |
